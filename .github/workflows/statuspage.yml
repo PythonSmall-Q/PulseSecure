@@ -1,0 +1,143 @@
+name: PulseStatus
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  issues:
+    types: [opened, edited, labeled, unlabeled, closed, reopened]
+  issue_comment:
+    types: [created, edited, deleted]
+  discussion:
+    types: [created, edited, deleted, transferred, pinned, unpinned, locked, unlocked, category_changed, answered, unanswered]
+  discussion_comment:
+    types: [created, edited, deleted]
+permissions:
+  contents: write
+  issues: write
+  discussions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pulsestatus-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    env:
+      PULSE_BOT_MODE: ${{ vars.PULSE_BOT_MODE || 'actions' }}
+      PULSE_APP_ID: ${{ secrets.PULSE_APP_ID }}
+      PULSE_APP_PRIVATE_KEY: ${{ secrets.PULSE_APP_PRIVATE_KEY }}
+    steps:
+      - name: Create optional GitHub App token
+        id: automation-token
+        continue-on-error: true
+        if: env.PULSE_BOT_MODE == 'app' && env.PULSE_APP_ID != '' && env.PULSE_APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@v1.11.0
+        with:
+          app-id: ${{ env.PULSE_APP_ID }}
+          private-key: ${{ env.PULSE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Fall back to github-actions
+        if: steps.automation-token.outcome == 'failure' || (env.PULSE_BOT_MODE == 'app' && (env.PULSE_APP_ID == '' || env.PULSE_APP_PRIVATE_KEY == ''))
+        run: echo "::warning::GitHub App token creation failed. Falling back to the built-in GITHUB_TOKEN. Verify that the App is installed on ${{ github.repository }} and has Contents and Issues write permissions."
+      - uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ steps.automation-token.outputs.token || secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run validate-config
+      - name: Sync GitHub Issues
+        env:
+          GITHUB_TOKEN: ${{ steps.automation-token.outputs.token || secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PULSE_SERVICES: web,api,assets,docs
+          PULSE_TRUSTED_MAINTAINERS: ${{ vars.PULSE_TRUSTED_MAINTAINERS }}
+        run: npm run sync-issues
+      - run: npm run check-services
+        env:
+          PULSE_MONITOR_MODE: manual
+      - name: Publish automated incidents
+        env:
+          GITHUB_TOKEN: ${{ steps.automation-token.outputs.token || secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run auto-publish-incidents
+      - name: Resolve GitHub App bot identity
+        id: app-identity
+        if: steps.automation-token.outputs.token != '' && steps.automation-token.outputs.app-slug != ''
+        env:
+          AUTOMATION_TOKEN: ${{ steps.automation-token.outputs.token }}
+          AUTOMATION_APP_SLUG: ${{ steps.automation-token.outputs.app-slug }}
+        run: |
+          bot_id="$(curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${AUTOMATION_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/users/${AUTOMATION_APP_SLUG}%5Bbot%5D" | jq -r '.id')"
+          test -n "$bot_id" && test "$bot_id" != "null"
+          echo "bot-id=$bot_id" >> "$GITHUB_OUTPUT"
+      - name: Persist monitor state
+        env:
+          AUTOMATION_TOKEN: ${{ steps.automation-token.outputs.token }}
+          AUTOMATION_APP_SLUG: ${{ steps.automation-token.outputs.app-slug }}
+          AUTOMATION_BOT_ID: ${{ steps.app-identity.outputs.bot-id }}
+        run: |
+          if [ -n "$AUTOMATION_TOKEN" ] && [ -n "$AUTOMATION_APP_SLUG" ] && [ -n "$AUTOMATION_BOT_ID" ]; then
+            git config user.name "${AUTOMATION_APP_SLUG}[bot]"
+            git config user.email "${AUTOMATION_BOT_ID}+${AUTOMATION_APP_SLUG}[bot]@users.noreply.github.com"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          fi
+          git add public/data/monitor-state.json public/data/probe-history.json public/data/services.json
+          if ! git diff --cached --quiet; then
+            stashed=false
+            if ! git diff --quiet; then
+              git stash push --include-untracked --keep-index -m "pulsestatus-publish-data"
+              stashed=true
+            fi
+            git commit -m "chore: persist monitor state [skip ci]"
+            pushed=false
+            for attempt in 1 2 3; do
+              if git fetch origin main && git rebase origin/main && git push; then
+                pushed=true
+                break
+              fi
+              if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+                git rebase --abort
+              fi
+              sleep $((attempt * 2))
+            done
+            if [ "$pushed" != true ]; then
+              echo "::warning::Could not persist monitor state because main changed concurrently; continuing with the current build."
+            fi
+            if [ "$stashed" = true ]; then
+              git stash pop
+            fi
+          fi
+      - run: npm run build-data && npm run generate-badges
+        env:
+          PULSE_MONITOR_MODE: hybrid
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run build
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+      - uses: actions/upload-pages-artifact@v3.0.1
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4.0.5

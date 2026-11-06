@@ -1,0 +1,48 @@
+name: Scheduled maintenance
+description: Publish a planned maintenance window.
+title: "[Maintenance] "
+labels:
+  - statuspage/maintenance
+body:
+  - type: markdown
+    attributes:
+      value: "Use ISO 8601 timestamps with an explicit offset, for example `2026-10-15T02:00:00+08:00`. Maintainers must add the matching service/* label before publication."
+  - type: textarea
+    id: description
+    attributes:
+      label: Maintenance description
+      description: Explain the reason, expected customer impact, and completion criteria.
+    validations:
+      required: true
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      options:
+        - web
+        - api
+        - assets
+        - docs
+    validations:
+      required: true
+  - type: input
+    id: starts
+    attributes:
+      label: Starts at
+      description: ISO 8601 timestamp with timezone, for example 2026-10-15T02:00:00+08:00
+    validations:
+      required: true
+  - type: input
+    id: ends
+    attributes:
+      label: Ends at
+      description: ISO 8601 timestamp with timezone
+    validations:
+      required: true
+  - type: input
+    id: timezone
+    attributes:
+      label: Timezone
+      placeholder: Asia/Singapore
+    validations:
+      required: true

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-06T15:05:24.225Z",
+  "services": [
+    {
+      "id": "web",
+      "name": "XMOJ-Script main site",
+      "nameI18n": {
+        "en": "XMOJ-Script main site",
+        "zh": "XMOJ-Script 主站"
+      },
+      "description": "The primary XMOJ-Script website.",
+      "descriptionI18n": {
+        "en": "The primary XMOJ-Script website.",
+        "zh": "XMOJ-Script 的主站和核心用户入口。"
+      },
+      "publicUrl": "https://xmoj-script.uk",
+      "checkUrl": "https://xmoj-script.uk",
+      "checkIntervalMinutes": 15,
+      "monitorMode": "scheduled",
+      "status": "operational",
+      "latencyMs": 214,
+      "lastCheckedAt": "2026-11-06T15:05:23.709Z"
+    },
+    {
+      "id": "api",
+      "name": "XMOJ-Script API",
+      "nameI18n": {
+        "en": "XMOJ-Script API",
+        "zh": "XMOJ-Script API"
+      },
+      "group": "backend",
+      "description": "The XMOJ-Script API service.",
+      "descriptionI18n": {
+        "en": "The XMOJ-Script API service.",
+        "zh": "XMOJ-Script 的 API 服务。"
+      },
+      "publicUrl": "https://api.xmoj-script.uk",
+      "checkIntervalMinutes": 10,
+      "monitorMode": "manual",
+      "status": "operational"
+    },
+    {
+      "id": "assets",
+      "name": "XMOJ-Script assets",
+      "nameI18n": {
+        "en": "XMOJ-Script assets",
+        "zh": "XMOJ-Script 图床"
+      },
+      "group": "backend",
+      "description": "Public image and asset hosting.",
+      "descriptionI18n": {
+        "en": "Public image and asset hosting.",
+        "zh": "公开图片和资源托管服务。"
+      },
+      "publicUrl": "https://assets.xmoj-script.uk",
+      "checkIntervalMinutes": 15,
+      "monitorMode": "manual",
+      "status": "operational"
+    },
+    {
+      "id": "docs",
+      "name": "XMOJ-Script documentation",
+      "nameI18n": {
+        "en": "XMOJ-Script documentation",
+        "zh": "XMOJ-Script 文档"
+      },
+      "description": "Public project documentation.",
+      "descriptionI18n": {
+        "en": "Public project documentation.",
+        "zh": "项目公开文档和使用说明。"
+      },
+      "publicUrl": "https://docs.xmoj-script.uk",
+      "checkUrl": "https://docs.xmoj-script.uk",
+      "checkIntervalMinutes": 15,
+      "monitorMode": "scheduled",
+      "status": "operational",
+      "latencyMs": 300,
+      "lastCheckedAt": "2026-11-06T15:05:23.709Z"
+    }
+  ]
+}
